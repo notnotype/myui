@@ -2,6 +2,7 @@
 
 import MyUpload from "./components/MyUpload/MyUpload.vue"
 
+
 </script>
 
 <template>
