@@ -56,7 +56,7 @@ async function* chunkFile(file: File): AsyncGenerator<[Blob, string, number]> {
 }
 
 async function getUploaded(uuid: string) {
-  const resp = await axios.get(`http://localhost:8000/upload_progress?uuid=${uuid}`)
+  const resp = await axios.get(`https://localhost:8000/upload_progress?uuid=${uuid}`)
   return resp.data
 }
 
@@ -87,7 +87,7 @@ async function onSubmit() {
   await uploader.upload(props.workersCount)
 
   // amend file
-  let resp = await axios.put(`http://localhost:8000/upload_end?uuid=${uuid}&filename=${file.name}`)
+  let resp = await axios.put(`https://localhost:8000/upload_end?uuid=${uuid}&filename=${file.name}`)
   console.log(resp.data)
 }
 

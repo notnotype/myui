@@ -35,7 +35,7 @@ export class UploadService {
       const formData = new FormData()
       formData.append('file', chunk)
       const resp = await axios.post(
-        `http://localhost:8000/upload_chunk?chunk=${chunkId}&chunk_hash=${chunkHash}&uuid=${uuid}`,
+        `https://localhost:8000/upload_chunk?chunk=${chunkId}&chunk_hash=${chunkHash}&uuid=${uuid}`,
         formData,
         {
           headers: {
