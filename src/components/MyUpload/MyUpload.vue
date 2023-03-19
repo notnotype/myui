@@ -11,16 +11,13 @@ import { UploadService } from '@/services/uploadService';
 import UploadProgressBar from './UploadProgressBar.vue';
 
 
-const CHUNK_SIZE = 1024 * 512
+const CHUNK_SIZE = 1024 * 64
 
 const props = defineProps<{
   workersCount: number
 }>()
 
 const fileInput = ref<HTMLInputElement>()
-onMounted(() => {
-  console.log(fileInput)
-})
 
 async function readeFileBlob(blob: Blob) {
   const reader = new FileReader()
@@ -60,6 +57,12 @@ async function getUploaded(uuid: string) {
   return resp.data
 }
 
+function setProgress(file: Blob) {
+  const fileChunkCount = Math.ceil(file.size / CHUNK_SIZE)
+  uploadProgress.value.length = 0
+  for (let i = 0; i < fileChunkCount; i++) uploadProgress.value.push({ loaded: 0, bytes: 0 })
+}
+
 const uploadProgress = ref<(AxiosProgressEvent)[]>([])
 
 async function onSubmit() {
@@ -68,12 +71,9 @@ async function onSubmit() {
     return
   }
   const file = fileInput.value.files[0]
+  setProgress(file)
   const uuid = uuidv4().replaceAll("-", "")
   const uploader = new UploadService()
-  const fileChunkCount = Math.ceil(file.size / CHUNK_SIZE)
-
-  uploadProgress.value.length = 0
-  for (let i = 0; i < fileChunkCount; i++) uploadProgress.value.push({loaded: 0, bytes: 0})
 
   for await (let [chunk, sha1, index] of chunkFile(file)) {
     // console.log(chunk, sha1, index)
@@ -88,7 +88,11 @@ async function onSubmit() {
 
   // amend file
   let resp = await axios.put(`https://localhost:8000/upload_end?uuid=${uuid}&filename=${file.name}`)
-  console.log(resp.data)
+  if (resp.data["code"] == 0) {
+    console.log("上传成功")
+  } else {
+    console.log("上传失败：文件合并失败")
+  }
 }
 
 </script>
@@ -98,7 +102,7 @@ async function onSubmit() {
     <form action="#" @submit.prevent="onSubmit">
       <input type="file" name="file" ref="fileInput" />
       <input type="submit" />
-      <UploadProgressBar :progress="uploadProgress"/>
+      <UploadProgressBar :progress="uploadProgress" />
     </form>
   </div>
 </template>

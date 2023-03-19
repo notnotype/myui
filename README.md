@@ -48,3 +48,7 @@ pnpm lint
 ```
 openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
 ```
+
+```
+hypercorn --keyfile key.pem --certfile cert.pem upload:app
+```
