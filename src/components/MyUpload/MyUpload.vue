@@ -1,29 +1,35 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import axios from "axios"
+import { v4 as uuidv4 } from "uuid"
+import axios, { type AxiosProgressEvent } from "axios"
 
 // for support ArrayBuffer
 import "crypto-js/lib-typedarrays"
 import "crypto-js/sha1"
 import CryptoJS from "crypto-js/core";
+import { UploadService } from '@/services/uploadService';
+import UploadProgressBar from './UploadProgressBar.vue';
 
-import {v4 as uuidv4} from "uuid"
 
-const CHUNK_SIZE = 1024 * 1024
+const CHUNK_SIZE = 1024 * 512
+
+const props = defineProps<{
+  workersCount: number
+}>()
 
 const fileInput = ref<HTMLInputElement>()
-onMounted(()=>{
+onMounted(() => {
   console.log(fileInput)
 })
 
 async function readeFileBlob(blob: Blob) {
   const reader = new FileReader()
   return new Promise<ArrayBuffer>((resolve, reject) => {
-      reader.onload = () => {
-        resolve(reader.result as ArrayBuffer)
-      }
-      reader.onerror = reject
-      reader.readAsArrayBuffer(blob)
+    reader.onload = () => {
+      resolve(reader.result as ArrayBuffer)
+    }
+    reader.onerror = reject
+    reader.readAsArrayBuffer(blob)
   })
 }
 
@@ -40,8 +46,8 @@ function calcSha1(buffer: ArrayBuffer) {
 async function* chunkFile(file: File): AsyncGenerator<[Blob, string, number]> {
   let index = 0
   const chunkCount = Math.ceil(file.size / CHUNK_SIZE)
-  
-  for (let i=0; i<chunkCount; i++) {
+
+  for (let i = 0; i < chunkCount; i++) {
     let chunked = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
     let chunkedData = await readeFileBlob(chunked)
     let sha1 = calcSha1(chunkedData)
@@ -49,33 +55,38 @@ async function* chunkFile(file: File): AsyncGenerator<[Blob, string, number]> {
   }
 }
 
-
-async function uploadChunk(chunk: Blob, chunkId: number, chunkHash: string, uuid: string) {
-  let formData = new FormData()
-  formData.append("file", chunk)
-  let rst = await axios.post(`http://localhost:8000/upload?chunk=${chunkId}&chunk_hash=${chunkHash}&uuid=${uuid}`, 
-    formData, {
-    headers: {
-      "Content-Type": "multipart/form-data"
-    }
-  })
-  console.log(rst.data)
-  if (rst.data["code"]) {
-    throw Error(rst.data["code"] + rst.data["msg"])
-  }
+async function getUploaded(uuid: string) {
+  const resp = await axios.get(`http://localhost:8000/upload_progress?uuid=${uuid}`)
+  return resp.data
 }
 
+const uploadProgress = ref<(AxiosProgressEvent)[]>([])
+
 async function onSubmit() {
-  if(!fileInput.value?.files?.length) {
+  if (!fileInput.value?.files?.length) {
     alert("please select file")
     return
   }
   const file = fileInput.value.files[0]
   const uuid = uuidv4().replaceAll("-", "")
+  const uploader = new UploadService()
+  const fileChunkCount = Math.ceil(file.size / CHUNK_SIZE)
+
+  uploadProgress.value.length = 0
+  for (let i = 0; i < fileChunkCount; i++) uploadProgress.value.push({loaded: 0, bytes: 0})
+
   for await (let [chunk, sha1, index] of chunkFile(file)) {
-    console.log(chunk, sha1, index)
-    await uploadChunk(chunk, index, sha1, uuid)
+    // console.log(chunk, sha1, index)
+    uploader.addTask(chunk, index, sha1, uuid, {
+      onUploadProgress: function (ev) {
+        uploadProgress.value[index] = ev
+      }
+    })
   }
+
+  await uploader.upload(props.workersCount)
+
+  // amend file
   let resp = await axios.put(`http://localhost:8000/upload_end?uuid=${uuid}&filename=${file.name}`)
   console.log(resp.data)
 }
@@ -85,8 +96,9 @@ async function onSubmit() {
 <template>
   <div class="my-upload">
     <form action="#" @submit.prevent="onSubmit">
-      <input type="file" name="file" ref="fileInput"/>
+      <input type="file" name="file" ref="fileInput" />
       <input type="submit" />
+      <UploadProgressBar :progress="uploadProgress"/>
     </form>
   </div>
 </template>

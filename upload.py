@@ -24,8 +24,8 @@ app.add_middleware(
 # async def upload_start(filename: str, size: int, hash: str):
     
 
-@app.post("/upload")
-async def upload(file: UploadFile, chunk: int, chunk_hash: str, uuid: str):
+@app.post("/upload_chunk")
+async def upload_chunk(file: UploadFile, chunk: int, chunk_hash: str, uuid: str):
     sha1 = hashlib.sha1()
     data = await file.read()
     sha1.update(data)
@@ -37,6 +37,13 @@ async def upload(file: UploadFile, chunk: int, chunk_hash: str, uuid: str):
         f.write(data)
     
     return {"code": 0, "msg": "ok"}
+
+@app.get("/upload_progress")
+async def upload_progress(uuid: str):
+    files = []  # [[file_hash, index],,]
+    for fname in glob.glob(f"{upload_dir.name}/{uuid}-*"):
+        files.append(fname.split("-")[1:])
+    return {"code": 0, "msg": "ok", "data": files}
 
 @app.put("/upload_end")
 async def upload_end(uuid: str, filename: str):
